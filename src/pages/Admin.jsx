@@ -27,19 +27,49 @@ function Admin() {
         activeUsers: 0
     });
 
-    // Enrich applications with user and internship details
-    const allApplications = applications.map(app => {
-        const user = users.find(u => u.email === app.userId);
-        const internship = internships.find(i => i.id === app.internshipId);
-        return {
-            ...app,
-            userName: user?.username || 'Unknown',
-            userEmail: app.userId,
-            internshipTitle: internship?.title || app.internshipTitle || 'N/A',
-            company: internship?.company || app.company || 'N/A',
-            appliedDate: app.appliedAt || app.appliedDate || new Date().toISOString()
-        };
-    });
+        // Enrich applications with user and internship details (handle populated objects or simple ids)
+        const allApplications = applications.map(app => {
+                // Normalize user info
+                let userName = 'Unknown';
+                let userEmail = '';
+                if (app.userId) {
+                    if (typeof app.userId === 'object') {
+                        userName = app.userId.username || app.userId.fullName || 'Unknown';
+                        userEmail = app.userId.email || app.userId.username || '';
+                    } else {
+                        userEmail = app.userId;
+                        const foundUser = users.find(u => u.email === app.userId || u.id === app.userId || String(u._id) === String(app.userId));
+                        userName = foundUser?.username || foundUser?.fullName || 'Unknown';
+                    }
+                }
+
+                // Normalize internship info
+                let internshipTitle = app.internshipTitle || 'N/A';
+                let company = app.company || 'N/A';
+                if (app.internshipId) {
+                    if (typeof app.internshipId === 'object') {
+                        internshipTitle = app.internshipId.title || internshipTitle;
+                        company = app.internshipId.company || company;
+                    } else {
+                        const found = internships.find(i => i._id === app.internshipId || i.id === app.internshipId);
+                        if (found) {
+                            internshipTitle = found.title;
+                            company = found.company;
+                        }
+                    }
+                }
+
+                const appliedDate = app.appliedAt || app.appliedDate || new Date().toISOString();
+
+                return {
+                    ...app,
+                    userName,
+                    userEmail,
+                    internshipTitle,
+                    company,
+                    appliedDate
+                };
+        });
 
     useEffect(() => {
         if (!loggedInUser) {
@@ -48,7 +78,7 @@ function Admin() {
             return;
         }
         
-        if (!loggedInUser.isAdmin) {
+        if (loggedInUser.role !== 'admin') {
             showMessage('Access denied. Admin privileges required.', 'error');
             setTimeout(() => navigate('/dashboard'), 1000);
             return;
@@ -254,9 +284,9 @@ function Admin() {
                                                     <td>{u.username}</td>
                                                     <td>{u.email}</td>
                                                     <td>{u.college || 'N/A'}</td>
-                                                    <td>{u.isAdmin ? 'Admin' : 'Student'}</td>
+                                                    <td>{u.role === 'admin' ? 'Admin' : 'Student'}</td>
                                                     <td>
-                                                        {!u.isAdmin && (
+                                                        {u.role !== 'admin' && (
                                                             <button 
                                                                 className="btn-small btn-primary"
                                                                 onClick={() => viewStudentDetails(u.email)}
@@ -316,7 +346,7 @@ function Admin() {
                                                         <div className="action-buttons">
                                                             <select
                                                                 value={app.status || 'Pending'}
-                                                                onChange={(e) => updateApplicationStatus(app.id, e.target.value)}
+                                                                onChange={(e) => updateApplicationStatus(app._id || app.id, e.target.value)}
                                                                 className="status-select"
                                                             >
                                                                 <option value="Pending">Pending</option>
@@ -326,7 +356,7 @@ function Admin() {
                                                             </select>
                                                             <button 
                                                                 className="btn-small btn-danger"
-                                                                onClick={() => deleteApplication(app.id)}
+                                                                onClick={() => deleteApplication(app._id || app.id)}
                                                             >
                                                                 🗑️
                                                             </button>
@@ -355,8 +385,8 @@ function Admin() {
                                 />
                             ) : (
                                 <div className="students-grid">
-                                    {users.filter(u => !u.isAdmin).map((student, index) => {
-                                        const studentEnrollments = applications.filter(e => e.userId === student.email);
+                                    {users.filter(u => u.role !== 'admin').map((student, index) => {
+                                        const studentEnrollments = applications.filter(e => (e.userId?._id || e.userId) === (student.id || student.email || String(student._id)));
                                         return (
                                             <div key={index} className="student-card" onClick={() => viewStudentDetails(student.email)}>
                                                 <div className="student-avatar-small">

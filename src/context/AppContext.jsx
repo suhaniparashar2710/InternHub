@@ -42,16 +42,35 @@ export const AppContextProvider = ({ children }) => {
   const fetchAllData = async () => {
     setIsLoading(true);
     try {
-      // Fetch internships, users, and applications in parallel
-      const [internshipsData, usersData, applicationsData] = await Promise.all([
-        api.internships.getAll().catch(() => []),
-        api.users.getAll().catch(() => []),
-        loggedInUser ? api.applications.getAll(loggedInUser.id).catch(() => []) : Promise.resolve([])
+      // Fetch internships and users first
+      const [internshipsData, usersData] = await Promise.all([
+        api.internships.getAll().catch(() => null),
+        api.users.getAll().catch(() => [])
       ]);
 
-      setInternships(internshipsData.length > 0 ? internshipsData : getFallbackInternships());
-      setUsers(usersData);
-      setApplications(applicationsData);
+      // Determine applications fetch based on role: admin gets all applications
+      let applicationsData = [];
+      if (loggedInUser) {
+        if (loggedInUser.role === 'admin') {
+          applicationsData = await api.applications.getAll().catch(() => []);
+        } else {
+          applicationsData = await api.applications.getAll(loggedInUser.id).catch(() => []);
+        }
+      }
+
+  // Normalize internships to always have an 'id' property for frontend consistency
+  const sourceInternships = internshipsData && internshipsData.length > 0 ? internshipsData : getFallbackInternships();
+  const normalized = sourceInternships.map(i => ({ ...i, id: i._id || i.id }));
+  setInternships(normalized);
+
+      // If users API fails or returns empty, include fallback demo/admin users so admin UI is usable offline
+      if (!usersData || usersData.length === 0) {
+        setUsers(getFallbackUsers());
+      } else {
+        setUsers(usersData);
+      }
+
+      setApplications(applicationsData || []);
     } catch (error) {
       console.error('Error fetching data:', error);
       // Use fallback data if API fails
@@ -95,6 +114,56 @@ export const AppContextProvider = ({ children }) => {
       description: "Work on machine learning projects and data analysis.",
       skills: ["Python", "TensorFlow", "Pandas", "Machine Learning"],
       type: "Full-time"
+    },
+    {
+      _id: '4',
+      title: "Quality Assurance Intern",
+      company: "TestWorks Labs",
+      duration: "2 Months",
+      location: "Remote",
+      stipend: "₹10,000/month",
+      description: "Assist in QA automation and manual testing",
+      skills: ["Testing", "Selenium", "Cypress", "Manual Testing"],
+      type: "Part-time"
+    },
+    {
+      _id: '5',
+      title: "DevOps Engineer Intern",
+      company: "CloudOps Ltd.",
+      duration: "3 Months",
+      location: "Bengaluru",
+      stipend: "₹17,000/month",
+      description: "Support CI/CD pipelines and cloud infra",
+      skills: ["Docker", "Kubernetes", "AWS"],
+      type: "Hybrid"
+    },
+    {
+      _id: '6',
+      title: "Content Writing Intern",
+      company: "ContentCraft",
+      duration: "2 Months",
+      location: "Remote",
+      stipend: "₹8,000/month",
+      description: "Write and edit blog posts, documentation and marketing content",
+      skills: ["Writing", "SEO", "Research"],
+      type: "Remote"
+    }
+  ];
+
+  const getFallbackUsers = () => [
+    {
+      id: 'admin-user',
+      username: 'admin',
+      email: 'admin@internhub.com',
+      fullName: 'Admin User',
+      role: 'admin'
+    },
+    {
+      id: 'demo-user',
+      username: 'demo',
+      email: 'demo@internhub.com',
+      fullName: 'Demo Student',
+      role: 'student'
     }
   ];
 
@@ -119,8 +188,7 @@ export const AppContextProvider = ({ children }) => {
           email: 'demo@internhub.com',
           fullName: 'Demo Student',
           role: 'student',
-          password: 'demo123',
-          isAdmin: false
+          password: 'demo123'
         },
         {
           id: 'admin-user',
@@ -128,8 +196,7 @@ export const AppContextProvider = ({ children }) => {
           email: 'admin@internhub.com',
           fullName: 'Admin User',
           role: 'admin',
-          password: 'suhani123',
-          isAdmin: true
+          password: 'suhani123'
         }
       ];
       
@@ -187,11 +254,13 @@ export const AppContextProvider = ({ children }) => {
       console.log('API apply failed, using offline mode...');
       
       // Offline fallback - save to localStorage
-      const internship = internships.find(i => i._id === internshipId || i.id === internshipId);
+      const internship = internships.find(i => i._id === internshipId || i.id === internshipId) || {};
       const offlineApp = {
         _id: Date.now().toString(),
         userId: loggedInUser.id,
-        internshipId: internship,
+        internshipId: internship._id || internship.id || internshipId,
+        internshipTitle: internship.title || 'Unknown Internship',
+        company: internship.company || '',
         status: 'Pending',
         appliedDate: new Date().toISOString(),
         adminFeedback: ''
@@ -210,7 +279,10 @@ export const AppContextProvider = ({ children }) => {
   // Get user applications
   const getUserApplications = () => {
     if (!loggedInUser) return [];
-    return applications.filter(app => app.userId._id === loggedInUser.id || app.userId === loggedInUser.id);
+    return applications.filter(app => {
+      const uid = app.userId?._id || app.userId;
+      return String(uid) === String(loggedInUser.id);
+    });
   };
 
   // Check if user has applied for an internship
@@ -218,9 +290,9 @@ export const AppContextProvider = ({ children }) => {
     if (!loggedInUser) return false;
     return applications.some(
       app => {
-        const userId = app.userId._id || app.userId;
-        const appInternshipId = app.internshipId._id || app.internshipId;
-        return userId === loggedInUser.id && appInternshipId === internshipId;
+        const userId = app.userId?._id || app.userId;
+        const appInternshipId = app.internshipId?._id || app.internshipId;
+        return String(userId) === String(loggedInUser.id) && String(appInternshipId) === String(internshipId);
       }
     );
   };

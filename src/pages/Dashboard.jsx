@@ -31,7 +31,7 @@ function Dashboard() {
             return;
         }
         
-        if (loggedInUser.isAdmin) {
+        if (loggedInUser.role === 'admin') {
             navigate('/admin');
             return;
         }

@@ -19,7 +19,7 @@ function Login() {
     // Redirect if already logged in
     useEffect(() => {
         if (loggedInUser) {
-            navigate(loggedInUser.isAdmin ? '/admin' : '/dashboard');
+            navigate(loggedInUser.role === 'admin' ? '/admin' : '/dashboard');
         }
     }, [loggedInUser, navigate]);
 

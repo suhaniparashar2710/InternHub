@@ -63,7 +63,7 @@ function Navbar() {
                             <li><Link to="/" className={currentPath === '/' ? 'active' : ''}>Home</Link></li>
                             <li><Link to="/login" className="btn-login">Login</Link></li>
                         </>
-                    ) : loggedInUser.isAdmin ? (
+                    ) : loggedInUser.role === 'admin' ? (
                         <>
                             <li><Link to="/admin" onClick={closeMobileMenu} className={currentPath === '/admin' ? 'active' : ''}>Admin Dashboard</Link></li>
                             <li><Link to="/" onClick={closeMobileMenu}>Home</Link></li>

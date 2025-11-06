@@ -17,7 +17,7 @@ export function initializeDemoData() {
             college: 'Demo University',
             branch: 'Computer Science',
             password: 'demo123',
-            isAdmin: false,
+            role: 'student',
             registeredAt: new Date().toISOString()
         };
         
@@ -32,7 +32,7 @@ export function initializeDemoData() {
             branch: 'B.Tech CSE-3',
             semester: '3rd Semester',
             password: 'admin123',
-            isAdmin: true,
+            role: 'admin',
             registeredAt: new Date().toISOString()
         };
         
