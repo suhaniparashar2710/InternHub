@@ -29,14 +29,18 @@ function Enrolled() {
         
         // Load enrolled internships
         const userApps = getUserApplications();
-        // Enrich with internship details
+        // Enrich with internship details and normalize shape
         const enrichedApps = userApps.map(app => {
-            const internship = internships.find(i => i.id === app.internshipId);
+            const internshipId = app.internshipId?._id || app.internshipId;
+            const internship = internships.find(i => i.id === internshipId || i._id === internshipId);
             return {
                 ...app,
+                id: app._id || app.id,
                 internshipTitle: internship?.title || app.internshipTitle,
                 company: internship?.company || app.company,
-                tasks: app.tasks || []
+                tasks: app.tasks || [],
+                status: app.status || 'Pending',
+                appliedAt: app.appliedDate || app.appliedAt || new Date().toISOString()
             };
         });
         setEnrolledInternships(enrichedApps);
@@ -46,18 +50,27 @@ function Enrolled() {
     const reloadData = () => {
         const userApps = getUserApplications();
         const enrichedApps = userApps.map(app => {
-            const internship = internships.find(i => i.id === app.internshipId);
+            const internshipId = app.internshipId?._id || app.internshipId;
+            const internship = internships.find(i => i.id === internshipId || i._id === internshipId);
             return {
                 ...app,
+                id: app._id || app.id,
                 internshipTitle: internship?.title || app.internshipTitle,
                 company: internship?.company || app.company,
-                tasks: app.tasks || []
+                tasks: app.tasks || [],
+                status: app.status || 'Pending',
+                appliedAt: app.appliedDate || app.appliedAt || new Date().toISOString()
             };
         });
         setEnrolledInternships(enrichedApps);
     };
 
     const handleAddTask = (applicationId) => {
+        const enrollment = enrolledInternships.find(e => (e.id || e._id) === applicationId);
+        if (enrollment && enrollment.status !== 'Accepted') {
+            showMessage('Tasks can only be added after the internship is accepted by the company/admin.', 'warning');
+            return;
+        }
         if (!newTask.title.trim()) {
             showMessage('Task title is required', 'warning');
             return;
@@ -70,6 +83,11 @@ function Enrolled() {
     };
 
     const handleToggleTaskStatus = (applicationId, taskId, currentStatus) => {
+        const enrollment = enrolledInternships.find(e => (e.id || e._id) === applicationId);
+        if (enrollment && enrollment.status !== 'Accepted') {
+            showMessage('You cannot change task status until your internship is accepted.', 'warning');
+            return;
+        }
         const newStatus = currentStatus === 'Completed' ? 'Pending' : 'Completed';
         updateTaskStatus(applicationId, taskId, newStatus);
         showMessage('Task status updated', 'success');
@@ -78,6 +96,11 @@ function Enrolled() {
 
     const handleDeleteTask = (applicationId, taskId) => {
         showConfirmModal('Are you sure you want to delete this task?', () => {
+            const enrollment = enrolledInternships.find(e => (e.id || e._id) === applicationId);
+            if (enrollment && enrollment.status !== 'Accepted') {
+                showMessage('You cannot delete tasks until your internship is accepted.', 'warning');
+                return;
+            }
             deleteTask(applicationId, taskId);
             showMessage('Task deleted successfully', 'success');
             reloadData();
@@ -192,6 +215,8 @@ function Enrolled() {
                                                                 <button 
                                                                     className="task-checkbox"
                                                                     onClick={() => handleToggleTaskStatus(enrollment.id, task.id, task.status)}
+                                                                    disabled={enrollment.status !== 'Accepted'}
+                                                                    title={enrollment.status !== 'Accepted' ? 'Cannot modify tasks until internship is accepted' : 'Toggle status'}
                                                                 >
                                                                     {task.status === 'Completed' ? '✓' : '○'}
                                                                 </button>
@@ -212,6 +237,8 @@ function Enrolled() {
                                                                 <button 
                                                                     className="task-delete"
                                                                     onClick={() => handleDeleteTask(enrollment.id, task.id)}
+                                                                    disabled={enrollment.status !== 'Accepted'}
+                                                                    title={enrollment.status !== 'Accepted' ? 'Cannot delete tasks until internship is accepted' : 'Delete task'}
                                                                 >
                                                                     🗑️
                                                                 </button>

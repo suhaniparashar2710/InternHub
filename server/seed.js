@@ -62,6 +62,18 @@ const internshipsData = [
     skills: ["Docker", "Kubernetes", "AWS", "Jenkins"],
     type: "Hybrid"
   }
+  ,
+  {
+    title: "Marketing & Content Internship",
+    company: "BrandWave Media",
+    location: "Remote",
+    duration: "2 months",
+    stipend: "₹8,000/month",
+    description: "Support content strategy, social media and marketing campaigns",
+    requirements: ["Good writing skills", "Basic understanding of social media"],
+    skills: ["Content Writing", "Social Media", "SEO"],
+    type: "Remote"
+  }
 ];
 
 async function seedDatabase() {

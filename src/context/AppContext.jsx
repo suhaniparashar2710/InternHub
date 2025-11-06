@@ -70,7 +70,13 @@ export const AppContextProvider = ({ children }) => {
         setUsers(usersData);
       }
 
-      setApplications(applicationsData || []);
+      // Normalize applications so frontend can rely on `.id` and `.status`
+      const normalizedApps = (applicationsData || []).map(a => ({
+        ...a,
+        id: a._id || a.id,
+        status: a.status || 'Pending'
+      }));
+      setApplications(normalizedApps);
     } catch (error) {
       console.error('Error fetching data:', error);
       // Use fallback data if API fails
@@ -173,9 +179,13 @@ export const AppContextProvider = ({ children }) => {
       // Try API first
       const userData = await api.users.login({ username, password });
       setLoggedInUser(userData);
-      // Fetch user's applications after login
-      const userApps = await api.applications.getAll(userData.id);
-      setApplications(userApps);
+      // If admin, refresh all data (users/internships/applications), else fetch user's applications
+      if (userData.role === 'admin') {
+        await fetchAllData();
+      } else {
+        const userApps = await api.applications.getAll(userData.id);
+        setApplications(userApps);
+      }
       return { success: true, user: userData };
     } catch (error) {
       console.log('API login failed, trying offline mode...', error);
@@ -307,7 +317,7 @@ export const AppContextProvider = ({ children }) => {
     try {
       const updatedApp = await api.applications.update(applicationId, { status: newStatus });
       const updatedApplications = applications.map(app =>
-        app._id === applicationId ? updatedApp : app
+        (String(app._id) === String(applicationId) || String(app.id) === String(applicationId)) ? { ...updatedApp, id: updatedApp._id || updatedApp.id } : app
       );
       setApplications(updatedApplications);
       return true;
@@ -321,7 +331,7 @@ export const AppContextProvider = ({ children }) => {
   const deleteApplication = async (applicationId) => {
     try {
       await api.applications.delete(applicationId);
-      const updatedApplications = applications.filter(app => app._id !== applicationId);
+      const updatedApplications = applications.filter(app => !(String(app._id) === String(applicationId) || String(app.id) === String(applicationId)));
       setApplications(updatedApplications);
       return true;
     } catch (error) {

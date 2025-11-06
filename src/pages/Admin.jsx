@@ -94,21 +94,31 @@ function Admin() {
         });
     }, [loggedInUser, users, applications, internships, navigate]);
 
-    const viewStudentDetails = (userEmail) => {
-        const user = users.find(u => u.email === userEmail);
-        const studentApps = applications.filter(app => app.userId === userEmail);
-        
-        // Enrich applications with internship details
+    const viewStudentDetails = (userIdentifier) => {
+        // userIdentifier may be email or id
+        const user = users.find(u => u.email === userIdentifier || u.id === userIdentifier || String(u._id) === String(userIdentifier));
+
+        // Filter applications for this user by matching populated userId or id string
+        const studentApps = applications.filter(app => {
+            const uid = app.userId?._id || app.userId;
+            return String(uid) === String(user?.id || user?.email || user?._id || userIdentifier);
+        });
+
+        // Enrich applications with internship details and normalize
         const enrichedApps = studentApps.map(app => {
-            const internship = internships.find(i => i.id === app.internshipId);
+            const internshipId = app.internshipId?._id || app.internshipId;
+            const internship = internships.find(i => i.id === internshipId || i._id === internshipId) || {};
             return {
                 ...app,
-                internshipTitle: internship?.title || app.internshipTitle || 'N/A',
-                company: internship?.company || app.company || 'N/A',
-                tasks: app.tasks || []
+                id: app._id || app.id,
+                internshipTitle: internship.title || app.internshipTitle || 'N/A',
+                company: internship.company || app.company || 'N/A',
+                tasks: app.tasks || [],
+                status: app.status || 'Pending',
+                appliedDate: app.appliedDate || app.appliedAt || new Date().toISOString()
             };
         });
-        
+
         setSelectedStudent({
             ...user,
             enrollments: enrichedApps
@@ -422,22 +432,22 @@ function Admin() {
 function StudentProgressView({ student, onClose, onSaveFeedback }) {
     const [feedbackData, setFeedbackData] = useState({});
 
-    const handleFeedbackChange = (enrollmentIndex, field, value) => {
+    const handleFeedbackChange = (enrollmentId, field, value) => {
         setFeedbackData(prev => ({
             ...prev,
-            [enrollmentIndex]: {
-                ...prev[enrollmentIndex],
+            [enrollmentId]: {
+                ...prev[enrollmentId],
                 [field]: value
             }
         }));
     };
 
-    const saveFeedback = (enrollmentIndex) => {
-        const data = feedbackData[enrollmentIndex] || {};
-        onSaveFeedback(enrollmentIndex, data.feedback || '', data.evaluation || 'Pending');
+    const saveFeedback = (enrollmentId) => {
+        const data = feedbackData[enrollmentId] || {};
+        onSaveFeedback(enrollmentId, data.feedback || '', data.evaluation || 'Pending');
         setFeedbackData(prev => ({
             ...prev,
-            [enrollmentIndex]: {}
+            [enrollmentId]: {}
         }));
     };
 
@@ -448,13 +458,9 @@ function StudentProgressView({ student, onClose, onSaveFeedback }) {
             
             {student.enrollments && student.enrollments.length > 0 ? (
                 student.enrollments.map((enrollment, index) => {
-                    const enrollments = JSON.parse(localStorage.getItem('enrollments') || '[]');
-                    const enrollmentIndex = enrollments.findIndex(
-                        e => e.userEmail === student.email && e.internshipId === enrollment.internshipId
-                    );
-                    
+                    const enrollmentId = enrollment.id || enrollment._id || index;
                     return (
-                        <div key={index} className="enrollment-detail-card">
+                        <div key={enrollmentId} className="enrollment-detail-card">
                             <h4>{enrollment.internshipTitle}</h4>
                             <p><strong>Company:</strong> {enrollment.company}</p>
                             
@@ -490,20 +496,20 @@ function StudentProgressView({ student, onClose, onSaveFeedback }) {
                             </div>
 
                             {/* Feedback Section */}
-                            <div className="feedback-section">
+                                <div className="feedback-section">
                                 <h5>💬 Mentor Feedback</h5>
                                 <textarea
                                     placeholder="Add feedback for this student..."
-                                    value={feedbackData[enrollmentIndex]?.feedback || enrollment.feedback || ''}
-                                    onChange={(e) => handleFeedbackChange(enrollmentIndex, 'feedback', e.target.value)}
+                                        value={feedbackData[enrollmentId]?.feedback || enrollment.adminFeedback || ''}
+                                        onChange={(e) => handleFeedbackChange(enrollmentId, 'feedback', e.target.value)}
                                     rows="3"
                                 ></textarea>
                                 
                                 <div className="evaluation-select">
                                     <label>Evaluation Status:</label>
                                     <select
-                                        value={feedbackData[enrollmentIndex]?.evaluation || enrollment.evaluation || 'Pending'}
-                                        onChange={(e) => handleFeedbackChange(enrollmentIndex, 'evaluation', e.target.value)}
+                                            value={feedbackData[enrollmentId]?.evaluation || enrollment.evaluation || 'Pending'}
+                                            onChange={(e) => handleFeedbackChange(enrollmentId, 'evaluation', e.target.value)}
                                     >
                                         <option value="Pending">Pending</option>
                                         <option value="Completed">Completed</option>
@@ -511,10 +517,10 @@ function StudentProgressView({ student, onClose, onSaveFeedback }) {
                                     </select>
                                 </div>
                                 
-                                <button 
-                                    className="btn-primary btn-small"
-                                    onClick={() => saveFeedback(enrollmentIndex)}
-                                >
+                                    <button 
+                                        className="btn-primary btn-small"
+                                        onClick={() => saveFeedback(enrollmentId)}
+                                    >
                                     💾 Save Feedback
                                 </button>
                                 
